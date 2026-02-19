@@ -35,7 +35,7 @@ found_folders = [d for d in os.listdir('.') if os.path.isdir(d) and not d.starts
 st.sidebar.write(found_folders)
 
 # User Input for Folder Path - Defaulting to 'Quotes'
-folder_path = st.text_input("Folder Path (Case Sensitive)", value="Quotes")
+folder_path = st.text_input("Folder Path (Case Sensitive)", value="New folder(3)")
 
 if st.button("🚀 Start Extraction"):
     try:
