@@ -2,74 +2,81 @@ import streamlit as st
 import os
 import PyPDF2
 import gspread
+import re
 from google.oauth2.service_account import Credentials
 
-# --- 1. AUTHENTICATION HELPER ---
+# --- AUTHENTICATION (Same as before) ---
 def get_gspread_client():
     creds_info = st.secrets["gcp_service_account"]
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(creds_info, scopes=scope)
     return gspread.authorize(creds)
 
-# --- 2. TEXT EXTRACTION HELPER ---
-def extract_text(file_path):
+# --- THE MAPPING LOGIC ---
+def parse_pdf_to_columns(file_path):
     text = ""
     try:
         with open(file_path, "rb") as f:
             reader = PyPDF2.PdfReader(f)
             for page in reader.pages:
-                content = page.extract_text()
-                if content:
-                    text += content + "\n"
-        return text.strip()
+                text += page.extract_text() + "\n"
+        
+        # Helper to find value after a heading
+        def get_val(heading):
+            # This regex looks for the heading and grabs the text until the next newline or major space
+            pattern = re.escape(heading) + r"[:\s]+([^\n]+)"
+            match = re.search(pattern, text, re.IGNORECASE)
+            return match.group(1).strip() if match else ""
+
+        # Constructing the row exactly as your headings are ordered
+        row = [
+            get_val("Item"),
+            get_val("Nett"),
+            get_val("Gross"),
+            get_val("Markup"),
+            get_val("Hours (Repro)"),
+            get_val("Dubuit"),
+            get_val("K9"),
+            get_val("OMSOx1: 100 x 270"),
+            get_val("OMSOx1: 135 x 270"),
+            get_val("PAD Print"),
+            get_val("HKx1:100-120mm"),
+            get_val("HKx1:130-150mm"),
+            get_val("HKx1:150-180mm"),
+            get_val("Silkscreen"),
+            get_val("Barcode"),
+            get_val("PDF (Artwork)"),
+            get_val("DTP"),
+            get_val("Pre-press"),
+            get_val("Epson proof"),
+            get_val("Foil Block")
+        ]
+        return row
     except Exception as e:
-        return f"Error: {str(e)}"
+        # Returns a list of errors if the PDF fails to read
+        return ["Error"] + [""] * 19
 
-# --- 3. STREAMLIT INTERFACE ---
-st.set_page_config(page_title="PDF to Sheets", page_icon="📄")
-st.title("📄 PDF to Google Sheets Porter")
+# --- MAIN APP ---
+st.title("📄 PDF to Structured Columns")
 
-# DEBUG: Let's see what folders exist on the server
-st.sidebar.write("### Folders found in your repo:")
-found_folders = [d for d in os.listdir('.') if os.path.isdir(d) and not d.startswith('.')]
-st.sidebar.write(found_folders)
+all_pdfs = [os.path.join(r, f) for r, d, fs in os.walk(".") if "Quotes" in r for f in fs if f.lower().endswith(".pdf")]
 
-# User Input for Folder Path - Defaulting to 'Quotes'
-folder_path = st.text_input("Folder Path (Case Sensitive)", value=".")
-
-if st.button("🚀 Start Extraction"):
-    try:
-        # Authenticate
+if st.button("🚀 Run Extraction"):
+    if not all_pdfs:
+        st.error("No PDFs found in the 'Quotes' folder.")
+    else:
         gc = get_gspread_client()
-        sheet_id = "1BSA6lItqxS92NCAxrXoK6ey9AzNh1C3ExM98WTXqXo4"
-        sh = gc.open_by_key(sheet_id)
+        sh = gc.open_by_key("1BSA6lItqxS92NCAxrXoK6ey9AzNh1C3ExM98WTXqXo4")
         worksheet = sh.get_worksheet(0)
 
-        # Check Folder
-        if not os.path.exists(folder_path):
-            st.error(f"Directory '{folder_path}' not found.")
-            st.info(f"Available folders are: {found_folders}")
-        else:
-            files = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf')]
-            
-            if not files:
-                st.warning(f"No PDF files found in '{folder_path}'.")
-            else:
-                progress_bar = st.progress(0)
-                status = st.empty()
-                
-                rows_to_add = []
-                for i, filename in enumerate(files):
-                    status.text(f"Reading: {filename}")
-                    full_path = os.path.join(folder_path, filename)
-                    
-                    content = extract_text(full_path)
-                    rows_to_add.append([filename, content])
-                    progress_bar.progress((i + 1) / len(files))
-                
-                status.text("Uploading to Google Sheets...")
-                worksheet.append_rows(rows_to_add)
-                st.success(f"✅ Successfully processed {len(files)} files!")
-                
-    except Exception as e:
-        st.error(f"Critical Error: {e}")
+        data_rows = []
+        progress = st.progress(0)
+        
+        for i, path in enumerate(all_pdfs):
+            st.write(f"Processing {os.path.basename(path)}...")
+            data_rows.append(parse_pdf_to_columns(path))
+            progress.progress((i + 1) / len(all_pdfs))
+        
+        # This sends all data at once. Each item in the list becomes a column.
+        worksheet.append_rows(data_rows)
+        st.success("✅ Spreadsheet Updated with 20 Columns!")
