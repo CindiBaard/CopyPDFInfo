@@ -37,7 +37,7 @@ st.set_page_config(page_title="PDF to Sheets", page_icon="📄")
 st.title("📄 PDF to Google Sheets Porter")
 
 # User Input for Folder Path
-folder_path = st.text_input("Folder Path", value="New folder(3)")
+folder_path = st.text_input("Folder Path", value="Quotes/New folder(3)")
 
 if st.button("🚀 Start Extraction"):
     try:
