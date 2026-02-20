@@ -83,7 +83,7 @@ else:
 
 # --- COLUMN HEADERS ---
 column_headers = [
-    "Client", "Description", "Preprod Ref", "Total", "Vat (15%)", "Grand Total", "Hours (Repro)", 
+    "Item", "Client", "Description", "Preprod Ref", "Total", "Vat (15%)", "Grand Total", "Hours (Repro)", 
     "Dubuit (Silkscreen positive)", "K9 (Silkscreen positive)", 
     "OMSOx1: 100 x 270 (Plate)", "OMSOx1: 135 x 270 (Plate)", 
     "PAD Print", "HKx1:100-120mm (155mm plate)", 
