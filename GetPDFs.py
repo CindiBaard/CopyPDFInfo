@@ -38,8 +38,8 @@ st.title("📄 PDF to Structured Columns")
 
 # --- DYNAMIC FILE SEARCH ---
 # This looks in the Root AND the Quotes folder automatically
-all_pdfs = []
-for root, dirs, files in os.walk("."):
+# Change "." to your specific folder name
+for root, dirs, files in os.walk("./Quotes"): 
     for file in files:
         if file.lower().endswith(".pdf"):
             all_pdfs.append(os.path.join(root, file))
