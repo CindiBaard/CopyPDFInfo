@@ -14,54 +14,61 @@ def get_gspread_client():
         creds = Credentials.from_service_account_info(creds_info, scopes=scope)
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Authentication Error: Check your Streamlit Secrets. {e}")
+        st.error(f"⚠️ Authentication Error: {e}")
         return None
 
 # --- THE MAPPING LOGIC ---
-def parse_pdf_to_columns(file_path, headers):
+def parse_pdf_to_columns(pdf_file, headers):
     try:
-        with open(file_path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
+        reader = PyPDF2.PdfReader(pdf_file)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
         
         row = []
         for h in headers:
-            # This regex looks for the heading and grabs the text following it
             pattern = re.escape(h) + r"[:\s]+([^\n]+)"
             match = re.search(pattern, text, re.IGNORECASE)
             row.append(match.group(1).strip() if match else "")
         return row
     except Exception as e:
-        return [f"Error reading {os.path.basename(file_path)}: {str(e)}"] + [""] * (len(headers) - 1)
+        return [f"Error: {str(e)}"] + [""] * (len(headers) - 1)
 
 # --- MAIN APP ---
 st.set_page_config(layout="wide", page_title="PDF Data Extractor")
 st.title("📄 PDF to Structured Columns")
 
 # --- DYNAMIC FILE SEARCH ---
-all_pdfs = []  # <--- FIXED: Initialized the list to prevent NameError
+all_pdfs = []
+# We define the specific path based on your GitHub structure: Files -> Quotes
+target_path = "./Files/Quotes"
 
-# Check if "Quotes" folder exists, otherwise look in the current directory
-search_dir = "./Quotes" if os.path.exists("./Quotes") else "."
+# Fallback: If the specific path isn't found, search everywhere but skip junk
+if not os.path.exists(target_path):
+    search_root = "." 
+else:
+    search_root = target_path
 
-for root, dirs, files in os.walk(search_dir):
-    # Prune hidden folders (like .git or .venv) to avoid the 9,000+ file issue
-    dirs[:] = [d for d in dirs if not d.startswith('.')]
+for root, dirs, files in os.walk(search_root):
+    # Ignore hidden folders
+    dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['venv', 'env']]
     for file in files:
         if file.lower().endswith(".pdf"):
             all_pdfs.append(os.path.join(root, file))
 
 # --- SIDEBAR STATUS ---
-st.sidebar.write(f"### 📁 System Status")
-st.sidebar.write(f"Searching in: `{search_dir}`")
-st.sidebar.write(f"Total PDFs detected: **{len(all_pdfs)}**")
+st.sidebar.header("📁 System Status")
+st.sidebar.write(f"Scanning: `{search_root}`")
+st.sidebar.write(f"PDFs Found: **{len(all_pdfs)}**")
 
 if all_pdfs:
-    st.sidebar.write("Files ready for processing ✅")
+    st.sidebar.success("Files located!")
+    # Show a small list of found files in the sidebar for peace of mind
+    with st.sidebar.expander("View File List"):
+        for p in all_pdfs:
+            st.write(os.path.basename(p))
 else:
-    st.sidebar.warning("No PDFs found in the target directory.")
+    st.sidebar.error("No PDFs found. Check folder names.")
 
 # --- COLUMN HEADERS ---
 column_headers = [
@@ -75,15 +82,15 @@ column_headers = [
     "Epson proof / Chromalin", "Foil Block"
 ]
 
-# --- STEPS ---
+# --- ACTION BUTTONS ---
 if not all_pdfs:
-    st.error("No PDFs found. Please ensure your PDFs are in the 'Quotes' folder or the root of your repository.")
+    st.warning("⚠️ Waiting for PDFs... Ensure your 'Files/Quotes' folder is pushed to GitHub.")
 else:
     col1, col2 = st.columns(2)
     
     with col1:
         if st.button("🔍 Step 1: Preview Data"):
-            with st.spinner("Reading PDFs..."):
+            with st.spinner(f"Processing {len(all_pdfs)} files..."):
                 preview_data = [parse_pdf_to_columns(p, column_headers) for p in all_pdfs]
                 st.session_state['extracted_data'] = preview_data
                 df = pd.DataFrame(preview_data, columns=column_headers)
@@ -94,12 +101,12 @@ else:
         if 'extracted_data' in st.session_state:
             if st.button("📤 Step 2: Push to Google Sheets"):
                 try:
-                    with st.spinner("Connecting to Google Sheets..."):
+                    with st.spinner("Connecting..."):
                         gc = get_gspread_client()
                         if gc:
                             sh = gc.open_by_key("1BSA6lItqxS92NCAxrXoK6ey9AzNh1C3ExM98WTXqXo4")
                             worksheet = sh.get_worksheet(0)
                             worksheet.append_rows(st.session_state['extracted_data'])
-                            st.success(f"✅ Successfully added {len(all_pdfs)} rows to your Spreadsheet!")
+                            st.success(f"✅ Added {len(all_pdfs)} rows!")
                 except Exception as e:
-                    st.error(f"Google Sheets Error: {e}")
+                    st.error(f"Error: {e}")
