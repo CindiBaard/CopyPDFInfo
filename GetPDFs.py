@@ -1,22 +1,3 @@
-
-Conversation with Gemini
-You said
-I am running this code but it shows that it there are 9917 pdfs. Please explain: 📁 System Status
-
-Total PDFs detected: 9917
-
-
-
-Files ready for processing ✅
-
-📄 PDF to Structured Columns
-
-
-
-
-
-Reading PDFs...
-
 import streamlit as st
 
 import os
